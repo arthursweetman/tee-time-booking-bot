@@ -1,0 +1,14 @@
+{
+  "name": "memorial-tee-times-bot2",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Arthur Sweetman",
+  "license": "ISC",
+  "dependencies": {
+    "puppeteer": "^19.9.1"
+  }
+}
