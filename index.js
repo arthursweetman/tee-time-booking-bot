@@ -2,7 +2,7 @@ const puppeteer = require("puppeteer");
 
 async function bookTeeTime(username, password, date, desiredTeeTime) {
   try {
-    const browser = await puppeteer.launch({ headless: true });
+    const browser = await puppeteer.launch({headless: false});
     const page = await browser.newPage();
 
     // Login
@@ -10,9 +10,6 @@ async function bookTeeTime(username, password, date, desiredTeeTime) {
 
     // Navigate to tee time page
     await navigateToTeeTimePage(page, date);
-
-    // Select category
-    await selectCategory(page, "Resident Adult (4-14 Days) Advance");
 
     // Select desired tee time
     await selectTeeTime(page, desiredTeeTime);
@@ -40,20 +37,45 @@ async function login(page, username, password) {
 
 async function navigateToTeeTimePage(page, date) {
   await page.waitForNavigation(); // Wait for login to complete
-
   await page.goto("https://foreupsoftware.com/booking/20945#/teetimes");
+  await selectCategory(page, "Resident Adult (4-14 Days) Advance");
 
-  await page.waitForSelector('input[id="date-field"]');
-  await page.evaluate(() => document.getElementById("date-field").value = "");
-  await page.type('input[id="date-field"]', date);
-  await page.keyboard.press('Enter');
+  const windowWidth = await page.viewport().width;
 
-  await page.waitForSelector('.booking-start-time-label'); // Wait for tee times to load
+  if (windowWidth < 992) {
+    // Actions for small screens
+    await page.waitForSelector('select#date-menu', { visible: true }).then(() => {
+      // Use page.evaluate to access and select the desired option
+      return page.evaluate((date) => {
+        const selectElement = document.querySelector('select#date-menu');
+        const desiredOption = selectElement.querySelector(`option[value="${date}"]`);
+    
+        if (desiredOption) {
+          desiredOption.selected = true; // Select the option
+          return true; // Indicate successful selection
+        } else {
+          return false; // Indicate option not found
+        }
+      }, date);
+    }).then((selectionResult) => {
+      if (selectionResult) {
+        console.log(`Successfully selected option with value "${date}"`);
+      } else {
+        console.error(`Option with value "${date}" not found in the select element.`);
+      }
+    });
+  } else {
+    // Actions for large screens
+    await page.waitForSelector('input[id="date-field"]');
+    await page.evaluate(() => document.getElementById("date-field").value = "");
+    await page.type('input[id="date-field"]', date);
+    await page.keyboard.press('Enter');
+  }
 }
 
 async function selectCategory(page, categoryName) {
   const categories = await page.$$('button[class="btn btn-primary col-md-4 col-xs-12 col-md-offset-4"]');
-  const desiredCategory = categories.find(cat => cat.evaluate(el => el.textContent === categoryName));
+  const desiredCategory = categories[3]
 
   if (desiredCategory) {
     await desiredCategory.click();
@@ -63,13 +85,21 @@ async function selectCategory(page, categoryName) {
 }
 
 async function selectTeeTime(page, desiredTeeTime) {
-  const teeTimes = await page.$$('.booking-start-time-label');
-  const desiredTime = teeTimes.find(time => time.evaluate(el => el.textContent === desiredTeeTime));
-
-  if (desiredTime) {
-    await desiredTime.click();
-  } else {
-    throw new Error(`Tee time "${desiredTeeTime}" not found.`);
+  try{
+    await page.waitForSelector('div.booking-start-time-label'); // Wait for tee times to load
+    const divElements = await page.$$('div.booking-start-time-label'); // Get all matching divs
+    const matchingDiv = divElements.find((div) => 
+      div.evaluate((el, desiredTeeTime) => el.textContent === desiredTeeTime, desiredTeeTime)
+    ); // Find the div with matching text
+  
+    if (matchingDiv) {
+      await matchingDiv.click(); // Click the matching div
+      console.log('Clicked on div with text:', desiredTeeTime);
+    } else {
+      console.error('Div with text "' + desiredTeeTime + '" not found.');
+    }
+  } catch (error) {
+    console.error('Error clicking div:', error);
   }
 }
 
